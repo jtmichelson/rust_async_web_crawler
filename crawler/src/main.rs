@@ -38,7 +38,7 @@ async fn main() -> Result<(), MyError> {
         sites.push(Url::parse(link)?);
     }
 
-    let mut todo = sites;
+    let mut todo: Vec<Url> = sites;
     for _depth in 0..MAX_DEPTH {
         todo = crawl_sites(todo).await?;
     }
@@ -85,14 +85,14 @@ async fn _always_err() -> Result<(), MyError> {
 }
 
 async fn all_urls(site: Url, tx: Sender<Msg>) -> Result<usize, MyError> {
-    let response = reqwest::get(site.clone()).await?;
-    let text = response.text().await?;
-    let urls = tokio::task::spawn_blocking(move || {
+    let response: reqwest::Response = reqwest::get(site.clone()).await?;
+    let text: String = response.text().await?;
+    let urls: Vec<Url> = tokio::task::spawn_blocking(move || {
         all_urls_in_text(&text) // blocking
     })
     .await?
     .unwrap_or_else(|err| panic!("Failed to get URL vector: {:?}.", err));
-    let count = urls.len();
+    let count: usize = urls.len();
     for url in urls {
         tx.send(Msg {
             site: site.clone(),
@@ -105,17 +105,17 @@ async fn all_urls(site: Url, tx: Sender<Msg>) -> Result<usize, MyError> {
 
 // Use Tokio spawn_blocking when calling so you don't have to rewrite everything in async.
 fn all_urls_in_text(text: &str) -> Result<Vec<Url>, MyError> {
-    let mut discovered = Vec::new();
-    let doc = Html::parse_document(&text);
+    let mut discovered: Vec<Url> = Vec::new();
+    let doc: Html = Html::parse_document(&text);
     // This unwrap should never fail; the input is a known constant.
-    let selector =
+    let selector: Selector =
         Selector::parse("a").unwrap_or_else(|err| panic!("Failed to parse tag `a`: {:?}.", err));
     for element in doc.select(&selector) {
-        let link = match element.value().attr("href") {
+        let link: &str = match element.value().attr("href") {
             Some(link) => link,
             None => continue,
         };
-        let url = match Url::parse(link) {
+        let url: Url = match Url::parse(link) {
             Ok(u) => u,
             Err(_) => continue,
         };
