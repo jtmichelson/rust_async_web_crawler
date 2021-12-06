@@ -3,8 +3,10 @@ async fn fact_yielding(n: u32) -> f64 {
     let mut i = 0_u32;
     let mut accum = 1_f64;
     loop {
-        println!("i: {I} fact_{N}({I}): {A}", N=n, I=i, A=accum);
-        if i == n { break; }
+        println!("i: {I} fact_{N}({I}): {A}", N = n, I = i, A = accum);
+        if i == n {
+            break;
+        }
         tokio::task::yield_now().await;
         i += 1;
         accum *= i as f64;
@@ -17,8 +19,10 @@ async fn fact_stiff(n: u32) -> f64 {
     let mut i = 0_u32;
     let mut accum = 1_f64;
     loop {
-        println!("i: {I} fact_{N}({I}): {A}", N=n, I=i, A=accum);
-        if i == n { break; }
+        println!("i: {I} fact_{N}({I}): {A}", N = n, I = i, A = accum);
+        if i == n {
+            break;
+        }
         i += 1;
         accum *= i as f64;
     }

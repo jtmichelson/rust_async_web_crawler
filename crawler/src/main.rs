@@ -1,3 +1,7 @@
+use scraper::{Html, Selector};
+use tokio::sync::mpsc::{channel, Sender};
+use url::Url;
+
 const AMAZON: &'static str = "https://www.amazon.com/";
 const DOCS_RS: &'static str = "https://docs.rs/";
 const MOZILLA: &'static str = "https://www.mozilla.org/";
@@ -5,8 +9,6 @@ const RUST_LANG: &'static str = "https://www.rust-lang.org/";
 const WIKIPEDIA: &'static str = "http://www.wikipedia.org/";
 
 type MyError = Box<dyn std::error::Error + Send + Sync>;
-
-use tokio::sync::mpsc::{channel, Sender};
 
 #[derive(Debug)]
 struct Msg {
@@ -18,8 +20,8 @@ const MSG_BUF_SIZE: usize = 4;
 
 const MAX_DEPTH: usize = 2;
 
-// RUST_LOG=crawler cargo run
-// RUST_LOG=crawler=error cargo run
+// Use "RUST_LOG=crawler cargo run" to show all traces.
+// Use "RUST_LOG=crawler=error cargo run" to show all error traces.
 
 #[tokio::main]
 async fn main() -> Result<(), MyError> {
@@ -44,7 +46,7 @@ async fn main() -> Result<(), MyError> {
     Ok(())
 }
 
-async fn crawl_sites(sites: impl IntoIterator<Item=Url>) -> Result<Vec<Url>, MyError> {
+async fn crawl_sites(sites: impl IntoIterator<Item = Url>) -> Result<Vec<Url>, MyError> {
     let mut discovered: Vec<Url> = Vec::new();
     let (tx, mut rx) = channel::<Msg>(MSG_BUF_SIZE);
 
@@ -82,29 +84,32 @@ async fn _always_err() -> Result<(), MyError> {
     Err("demo-err".into())
 }
 
-use url::Url;
-use scraper::{Html, Selector};
-
 async fn all_urls(site: Url, tx: Sender<Msg>) -> Result<usize, MyError> {
     let response = reqwest::get(site.clone()).await?;
     let text = response.text().await?;
-    // println!("response text: {} bytes", text.len());
-    let urls = all_urls_in_text(&text)?; // blocking
+    let urls = tokio::task::spawn_blocking(move || {
+        all_urls_in_text(&text) // blocking
+    })
+    .await?
+    .unwrap_or_else(|err| panic!("Failed to get URL vector: {:?}.", err));
     let count = urls.len();
     for url in urls {
-        tx.send(Msg { site: site.clone(), link: url }).await?
+        tx.send(Msg {
+            site: site.clone(),
+            link: url,
+        })
+        .await?
     }
     Ok(count)
 }
 
-// Tokio sync blocking -> so you don't have to rewrite everything in async
-fn all_urls_in_text(text: &str) -> Result<Vec<Url>, MyError>
-{
+// Use Tokio spawn_blocking when calling so you don't have to rewrite everything in async.
+fn all_urls_in_text(text: &str) -> Result<Vec<Url>, MyError> {
     let mut discovered = Vec::new();
     let doc = Html::parse_document(&text);
-    // (This unwrap should never fail; the input is a known constant.)
-    let selector = Selector::parse("a")
-        .unwrap_or_else(|err| panic!("failed to parse tag `a`: {:?}.", err));
+    // This unwrap should never fail; the input is a known constant.
+    let selector =
+        Selector::parse("a").unwrap_or_else(|err| panic!("Failed to parse tag `a`: {:?}.", err));
     for element in doc.select(&selector) {
         let link = match element.value().attr("href") {
             Some(link) => link,
